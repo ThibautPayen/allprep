@@ -1,10 +1,11 @@
-#! /usr/bin/env python2.6
+#! /usr/bin/env python
 
 import os, sys, math, time, operator
 import subprocess
 from itertools import imap
 from optparse import OptionParser
 from collections import defaultdict
+import gzip
 
 #Comai Lab, Ucdavis Genome Center
 #Meric Lieberman, 2016
@@ -67,7 +68,8 @@ parser.add_option("-N", "--Ncut", dest="ntrim", action="store_true", default = F
 parser.add_option("-q", "--qualities", dest="qual", action="store_true", default = False, help="Convert Illumina 1.5 read qualities to sanger.")
 parser.add_option("-D", "--demultiplex", dest="demulti", action="store_true", default = False, help="ONLY Demultiplex, not trimming or checking at all")
 parser.add_option("-M", "--minseqlen", dest="minSeqLen", type = "int", default=35, help="Minimum sequence Length")
-
+parser.add_option("-s", "--separator", dest="separator", type = "str", default="#", help="Define a new separator between the index and the rest of the sequence")
+parser.add_option("-z", "--gzip", dest="gzip", action="store_true", default = False, help="Use this option if you want the fastq outpout to be gziped")
 
 (opt, args) = parser.parse_args()
 
@@ -127,7 +129,7 @@ def get_reads(readset):
          reads[ind] = [name, seq, plus, qual]
       ind+=1
    if reads != [[],[],[],[]]:
-      return reads
+       return reads
    else:
       return "EOF"
 
@@ -150,9 +152,9 @@ def get_codes(readset):
    except:
       codei2 = '' 
    if lenindex != 0 and opt.i == False:
-      codei1 = read[0][0].split('#')[-1].split('/')[0]
+      codei1 = read[0][0].split(opt.separator)[-1].split('/')[0]
       try:
-         codei2 = read[1][0].split('#')[-1].split('/')[0]
+         codei2 = read[1][0].split(opt.separator)[-1].split('/')[0]
       except:
          codei2 = ''
    return [code1, code2, codei1, codei2]  
@@ -300,7 +302,11 @@ for l in bt:
       name = code1+'-'+code2      
    codes[ctype][name] = libname
    if libname not in handles:
-      handles[libname] = open(libname+'.fq', 'w')
+       if opt.gzip:
+           handles[libname] = gzip.open(libname+'.fq.gz', 'w')
+       else:
+           handles[libname] = open(libname+'.fq', 'w')
+
    else:
       print libname
       parser.error("Duplicate Filename !!! :"+libname)
@@ -321,11 +327,18 @@ if opt.miss == True:
 try:
    frlen = file_len(opt.f)/4
    #frlen = 296146516
-   ffile = open(opt.f)
+   if opt.f[-3:] == ".gz":
+       ffile = gzip.open(opt.f)
+   else:
+       print(opt.f[-3:])
+       ffile = open(opt.f)
 except:
    parser.error("Please specify reads files. Please check your command line paramters with -h or --help")
 if opt.r !=  False:
-   rfile = open(opt.r)
+    if opt.r[-3:] == ".gz":
+        rfile = gzip.open(opt.r)
+    else:
+        rfile = open(opt.r)
 else:
    rfile = ''
 if opt.i !=  False:
@@ -337,7 +350,10 @@ if opt.i2 !=  False:
 else:
    i2file = ''
 if opt.errfile != False:
-   efile = open("rejected-reads-"+opt.bfile, 'w')
+    if opt.gzip:
+        efile = gzip.open("rejected-reads-"+opt.bfile+'.gz', 'w')
+    else:
+        efile = open("rejected-reads-"+opt.bfile, 'w')
 creadset = [ffile, rfile, ifile, i2file]   
 
 # go through all attached files one read at a time   
